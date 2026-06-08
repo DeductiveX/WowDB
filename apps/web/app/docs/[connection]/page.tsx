@@ -1,17 +1,15 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Copy, CheckCheck, Loader2 } from "lucide-react";
+import { Copy, CheckCheck } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { api } from "@/lib/api";
 
-export default function DocsPage() {
-  const { connection } = useParams<{ connection: string }>();
+function DocsContent({ connId }: { connId: number }) {
   const searchParams = useSearchParams();
-  const connId = Number(connection);
   const database = searchParams.get("db") ?? "";
   const pwdParam = searchParams.get("pwd") ?? "";
 
@@ -20,7 +18,9 @@ export default function DocsPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const password = pwdParam || (typeof window !== "undefined" ? sessionStorage.getItem(`pwd_${connId}`) ?? "" : "");
+  const password =
+    pwdParam ||
+    (typeof window !== "undefined" ? sessionStorage.getItem(`pwd_${connId}`) ?? "" : "");
 
   useEffect(() => {
     if (!database || !password) {
@@ -28,9 +28,10 @@ export default function DocsPage() {
       setLoading(false);
       return;
     }
-    api.generateDocs(connId, database, password)
+    api
+      .generateDocs(connId, database, password)
       .then((r) => setMarkdown(r.markdown))
-      .catch((e) => setError(e.message))
+      .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [connId, database, password]);
 
@@ -49,13 +50,16 @@ export default function DocsPage() {
         actions={
           markdown && (
             <Button variant="outline" size="sm" onClick={handleCopy}>
-              {copied ? <CheckCheck className="mr-1.5 h-3.5 w-3.5 text-emerald-500" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
+              {copied ? (
+                <CheckCheck className="mr-1.5 h-3.5 w-3.5 text-emerald-500" />
+              ) : (
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+              )}
               {copied ? "Copied!" : "Copy Markdown"}
             </Button>
           )
         }
       />
-
       <div className="p-6">
         {loading && <LoadingState message="Generating documentation..." />}
         {error && <ErrorState message={error} />}
@@ -66,5 +70,14 @@ export default function DocsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DocsPage() {
+  const { connection } = useParams<{ connection: string }>();
+  return (
+    <Suspense fallback={<LoadingState message="Loading docs…" />}>
+      <DocsContent connId={Number(connection)} />
+    </Suspense>
   );
 }
