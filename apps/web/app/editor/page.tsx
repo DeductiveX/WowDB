@@ -1,16 +1,23 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Clock, Rows3 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Rows3, Download } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { SqlEditor } from "@/components/sql-editor";
 import { DataTable } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
+import { NlSqlBar } from "@/components/ai/nl-sql-bar";
+import { AIResultPanel } from "@/components/ai/ai-result-panel";
+import { AIProviderDialog } from "@/components/ai/ai-provider-dialog";
 import { api } from "@/lib/api";
-import type { Connection, QueryResult } from "@/lib/types";
+import { getAISettings } from "@/lib/ai";
+import { useStream } from "@/lib/use-stream";
+import { PROMPTS, serializeSchema } from "@/lib/ai-prompts";
+import type { Connection, QueryResult, SchemaContext } from "@/lib/types";
 
 export default function EditorPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -20,6 +27,10 @@ export default function EditorPage() {
   const [query, setQuery] = useState("SELECT * FROM clientes");
   const [result, setResult] = useState<QueryResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [schemaCtx, setSchemaCtx] = useState<SchemaContext | null>(null);
+
+  const explain = useStream();
+  const optimize = useStream();
 
   useEffect(() => {
     api.listConnections().then((list) => {
@@ -36,30 +47,99 @@ export default function EditorPage() {
     if (conn?.database) setDatabase(conn.database);
   }, [selectedId, connections]);
 
+  // Fetch schema context when connection + database + password are set
+  useEffect(() => {
+    if (!selectedId || !database || !password) { setSchemaCtx(null); return; }
+    api.getAIContext(selectedId, database, password)
+      .then(setSchemaCtx)
+      .catch(() => setSchemaCtx(null));
+  }, [selectedId, database, password]);
+
   const handleRun = async () => {
     if (!selectedId || !password) return;
     setLoading(true);
+    explain.reset();
+    optimize.reset();
     try {
       const res = await api.executeQuery(selectedId, query, password, database || undefined);
       setResult(res);
     } catch (e: unknown) {
       setResult({
-        success: false,
-        blocked: false,
+        success: false, blocked: false,
         reason: e instanceof Error ? e.message : "Unknown error",
-        columns: [],
-        rows: [],
-        count: 0,
-        elapsed_ms: 0,
+        columns: [], rows: [], count: 0, elapsed_ms: 0,
       });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleExplain = async () => {
+    const settings = getAISettings();
+    if (!settings || !query.trim()) return;
+    optimize.reset();
+    const schema = schemaCtx ? serializeSchema(schemaCtx) : "";
+    const system = schema ? PROMPTS.explainQuery(schema) : PROMPTS.explainQueryNoSchema();
+    await explain.run(
+      [{ role: "system", content: system }, { role: "user", content: query }],
+      settings
+    );
+  };
+
+  const handleOptimize = async () => {
+    const settings = getAISettings();
+    if (!settings || !query.trim() || !schemaCtx) return;
+    explain.reset();
+    await optimize.run(
+      [
+        { role: "system", content: PROMPTS.optimizeQuery(serializeSchema(schemaCtx)) },
+        { role: "user", content: query },
+      ],
+      settings
+    );
+  };
+
+  const handleExportCsv = () => {
+    if (!result?.rows.length) return;
+    const header = result.columns.join(",");
+    const rows = result.rows.map((r) =>
+      result.columns.map((c) => {
+        const v = String(r[c] ?? "");
+        return v.includes(",") || v.includes('"') || v.includes("\n")
+          ? `"${v.replace(/"/g, '""')}"` : v;
+      }).join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "query-result.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportJson = () => {
+    if (!result?.rows.length) return;
+    const json = JSON.stringify(result.rows, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "query-result.json"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const schemaText = schemaCtx ? serializeSchema(schemaCtx) : "";
+
   return (
     <div className="flex flex-col">
-      <AppHeader title="SQL Editor" description="Read-only query execution" />
+      <AppHeader
+        title="SQL Editor"
+        description="Read-only query execution"
+        actions={
+          <AIProviderDialog>
+            <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground">
+              ✦ {getAISettings() ? "AI ✓" : "AI Setup"}
+            </Button>
+          </AIProviderDialog>
+        }
+      />
 
       <div className="p-6 space-y-4">
         {/* Connection selector */}
@@ -79,31 +159,33 @@ export default function EditorPage() {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Database</Label>
-            <Input
-              className="h-9 w-40"
-              placeholder="database name"
-              value={database}
-              onChange={(e) => setDatabase(e.target.value)}
-            />
+            <Input className="h-9 w-40" placeholder="database name" value={database} onChange={(e) => setDatabase(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Password</Label>
-            <Input
-              className="h-9 w-40"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <Input className="h-9 w-40" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
         </div>
 
-        <SqlEditor value={query} onChange={setQuery} onRun={handleRun} loading={loading} />
+        {/* NL → SQL bar */}
+        <NlSqlBar schemaText={schemaText} onResult={setQuery} />
+
+        <SqlEditor
+          value={query}
+          onChange={setQuery}
+          onRun={handleRun}
+          onExplain={handleExplain}
+          onOptimize={schemaCtx ? handleOptimize : undefined}
+          loading={loading}
+        />
+
+        {/* AI panels */}
+        <AIResultPanel title="Explain" text={explain.text} streaming={explain.streaming} error={explain.error} onStop={explain.stop} onClose={explain.reset} />
+        <AIResultPanel title="Optimize" text={optimize.text} streaming={optimize.streaming} error={optimize.error} onStop={optimize.stop} onClose={optimize.reset} />
 
         {/* Result */}
         {result && (
           <div className="space-y-3">
-            {/* Status bar */}
             <div className="flex items-center gap-3 flex-wrap">
               {result.blocked ? (
                 <div className="flex items-center gap-1.5 text-sm text-destructive">
@@ -125,6 +207,16 @@ export default function EditorPage() {
                   {result.normalized_query && result.normalized_query !== query && (
                     <Badge variant="warning" className="text-xs">LIMIT auto-applied</Badge>
                   )}
+                  {result.rows.length > 0 && (
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button size="sm" variant="outline" onClick={handleExportCsv} className="h-7 text-xs gap-1">
+                        <Download className="h-3 w-3" /> CSV
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={handleExportJson} className="h-7 text-xs gap-1">
+                        <Download className="h-3 w-3" /> JSON
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="flex items-center gap-1.5 text-sm text-destructive">
@@ -137,7 +229,6 @@ export default function EditorPage() {
             {result.success && !result.blocked && result.columns.length > 0 && (
               <DataTable columns={result.columns} rows={result.rows} />
             )}
-
             {result.success && !result.blocked && result.columns.length === 0 && (
               <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -148,10 +239,10 @@ export default function EditorPage() {
           </div>
         )}
 
-        {!result && (
+        {!result && !explain.text && !optimize.text && (
           <EmptyState
             title="Run a query"
-            description="Write a SELECT, SHOW, DESCRIBE or EXPLAIN query and press Run."
+            description="Write SQL directly, or describe it in plain language above."
           />
         )}
       </div>

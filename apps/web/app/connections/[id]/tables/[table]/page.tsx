@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Eye, Key, Link2, FileText } from "lucide-react";
+import { ArrowLeft, Eye, Key, Link2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DataTable } from "@/components/data-table";
 import { LoadingState } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
+import { SchemaReviewer } from "@/components/ai/schema-reviewer";
 import { api } from "@/lib/api";
-import type { TableDetail, PreviewResult } from "@/lib/types";
+import type { TableDetail, PreviewResult, SchemaContext } from "@/lib/types";
 
 function TableDetailContent({ connId, table }: { connId: number; table: string }) {
   const searchParams = useSearchParams();
@@ -19,6 +20,7 @@ function TableDetailContent({ connId, table }: { connId: number; table: string }
 
   const [detail, setDetail] = useState<TableDetail | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
+  const [schemaCtx, setSchemaCtx] = useState<SchemaContext | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,9 @@ function TableDetailContent({ connId, table }: { connId: number; table: string }
       .then(setDetail)
       .catch((e) => setError(e.message))
       .finally(() => setLoadingDetail(false));
+    api.getAIContext(connId, database, password)
+      .then(setSchemaCtx)
+      .catch(() => setSchemaCtx(null));
   }, [connId, table, database, password]);
 
   const loadPreview = () => {
@@ -61,7 +66,7 @@ function TableDetailContent({ connId, table }: { connId: number; table: string }
         description={`${database} · ${detail.columns.length} columns`}
         actions={
           <Button asChild variant="outline" size="sm">
-            <Link href={`/connections/${connId}?database=${database}`}>
+            <Link href={`/connections/${connId}`}>
               <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
             </Link>
           </Button>
@@ -79,6 +84,7 @@ function TableDetailContent({ connId, table }: { connId: number; table: string }
             <TabsTrigger value="preview" onClick={!preview ? loadPreview : undefined}>
               <Eye className="mr-1.5 h-3 w-3" /> Preview
             </TabsTrigger>
+            <TabsTrigger value="ai">✦ AI Analysis</TabsTrigger>
           </TabsList>
 
           {/* Columns */}
@@ -104,9 +110,7 @@ function TableDetailContent({ connId, table }: { connId: number; table: string }
                         </Badge>
                       </td>
                       <td className="px-3 py-2">{keyBadge(col.COLUMN_KEY)}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {col.COLUMN_DEFAULT ?? <span className="italic">—</span>}
-                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{col.COLUMN_DEFAULT ?? <span className="italic">—</span>}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{col.EXTRA || "—"}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{col.COLUMN_COMMENT || "—"}</td>
                     </tr>
@@ -196,6 +200,11 @@ function TableDetailContent({ connId, table }: { connId: number; table: string }
                 Click the Preview tab to load data.
               </div>
             )}
+          </TabsContent>
+
+          {/* AI Analysis */}
+          <TabsContent value="ai">
+            <SchemaReviewer tableName={table} schemaCtx={schemaCtx} />
           </TabsContent>
         </Tabs>
       </div>

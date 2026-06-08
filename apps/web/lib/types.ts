@@ -96,6 +96,30 @@ export interface HealthResult {
   version: string;
 }
 
+// ── AI / Schema Context ──────────────────────────────────────────────
+
+export interface SchemaColumn {
+  name: string;
+  type: string;
+  key: string;
+  nullable: boolean;
+  extra: string;
+}
+
+export interface SchemaTable {
+  name: string;
+  engine: string;
+  row_count: number | null;
+  comment: string;
+  columns: SchemaColumn[];
+  foreign_keys: Array<{ column: string; references: string }>;
+}
+
+export interface SchemaContext {
+  database: string;
+  tables: SchemaTable[];
+}
+
 // ── ERD ──────────────────────────────────────────────────────────────
 
 export interface ErdColumn {

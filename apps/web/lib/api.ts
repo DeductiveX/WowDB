@@ -9,6 +9,7 @@ import type {
   DocsResult,
   HealthResult,
   ErdData,
+  SchemaContext,
 } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -115,5 +116,9 @@ export const api = {
 
   getErd(connectionId: number, database: string, password: string): Promise<ErdData> {
     return request(`/api/connections/${connectionId}/erd?database=${encodeURIComponent(database)}`, {}, password);
+  },
+
+  getAIContext(connectionId: number, database: string, password: string): Promise<SchemaContext> {
+    return request(`/api/connections/${connectionId}/ai-context?database=${encodeURIComponent(database)}`, {}, password);
   },
 };
