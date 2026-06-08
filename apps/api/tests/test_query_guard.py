@@ -66,3 +66,39 @@ def test_multiple_statements_blocked():
 def test_empty_blocked():
     result = check_query("")
     assert not result.allowed
+
+
+# Regression tests: column names that contain blocked keyword substrings
+def test_created_at_allowed():
+    result = check_query("SELECT created_at FROM users")
+    assert result.allowed, f"Blocked unexpectedly: {result.reason}"
+
+
+def test_updated_at_allowed():
+    result = check_query("SELECT updated_at FROM orders")
+    assert result.allowed, f"Blocked unexpectedly: {result.reason}"
+
+
+def test_deleted_at_allowed():
+    result = check_query("SELECT deleted_at FROM posts")
+    assert result.allowed, f"Blocked unexpectedly: {result.reason}"
+
+
+def test_replace_function_allowed():
+    result = check_query("SELECT REPLACE(nome, ' ', '_') FROM clientes")
+    assert result.allowed, f"Blocked unexpectedly: {result.reason}"
+
+
+def test_executive_column_allowed():
+    result = check_query("SELECT executive_id FROM org")
+    assert result.allowed, f"Blocked unexpectedly: {result.reason}"
+
+
+def test_grant_date_column_allowed():
+    result = check_query("SELECT grant_date FROM loans")
+    assert result.allowed, f"Blocked unexpectedly: {result.reason}"
+
+
+def test_clock_in_column_allowed():
+    result = check_query("SELECT clock_in FROM attendance")
+    assert result.allowed, f"Blocked unexpectedly: {result.reason}"

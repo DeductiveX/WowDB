@@ -51,12 +51,15 @@ def test_connection(host: str, port: int, user: str, password: str, database: st
         return False, f"Unexpected error: {str(e)}", None
 
 
+_SYSTEM_DATABASES = {"information_schema", "mysql", "performance_schema", "sys"}
+
+
 def list_databases(host: str, port: int, user: str, password: str) -> list[str]:
     with get_mysql_connection(host, port, user, password) as conn:
         with conn.cursor() as cursor:
             cursor.execute("SHOW DATABASES")
             rows = cursor.fetchall()
-    return [row["Database"] for row in rows]
+    return [row["Database"] for row in rows if row["Database"] not in _SYSTEM_DATABASES]
 
 
 def list_tables(host: str, port: int, user: str, password: str, database: str) -> list[dict]:

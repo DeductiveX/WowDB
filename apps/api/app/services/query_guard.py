@@ -5,6 +5,7 @@ Defense-in-depth: this guard does NOT replace a read-only DB user.
 Always use a MySQL user with SELECT-only grants in production.
 """
 
+import re
 from dataclasses import dataclass
 import sqlglot
 from sqlglot import exp
@@ -35,9 +36,10 @@ BLOCKED_STATEMENT_TYPES = (
 
 BLOCKED_KEYWORDS = [
     "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE",
-    "CREATE", "REPLACE", "GRANT", "REVOKE", "CALL", "EXEC",
+    "CREATE", "GRANT", "REVOKE", "CALL", "EXEC",
     "EXECUTE", "LOAD", "MERGE", "LOCK", "UNLOCK",
     "SET GLOBAL", "SET SESSION", "SHUTDOWN", "KILL",
+    "REPLACE INTO",  # REPLACE() is a valid string function; only block the DML form
 ]
 
 
@@ -74,9 +76,16 @@ def check_query(sql: str, default_limit: int = 100) -> GuardResult:
     stmt = statements[0]
 
     # Hard keyword block (catches obfuscation attempts)
+    # Multi-word keywords (e.g. "SET GLOBAL") use substring match;
+    # single-word keywords use word-boundary match to avoid false positives
+    # on column names like created_at, updated_at, executive_id, etc.
     upper = raw.upper()
     for kw in BLOCKED_KEYWORDS:
-        if kw in upper:
+        if " " in kw:
+            hit = kw in upper
+        else:
+            hit = bool(re.search(rf"\b{re.escape(kw)}\b", upper))
+        if hit:
             return GuardResult(
                 allowed=False,
                 reason=f"Statement contains blocked keyword '{kw}'. Only SELECT, SHOW, DESCRIBE and EXPLAIN are allowed.",

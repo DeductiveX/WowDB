@@ -91,7 +91,7 @@ export default function ConnectionExplorerPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="sm">
-                <Link href={`/docs/${connId}?db=${activeDb}&pwd=${encodeURIComponent(password)}`}>
+                <Link href={`/docs/${connId}?db=${activeDb}`}>
                   Generate Docs
                 </Link>
               </Button>
