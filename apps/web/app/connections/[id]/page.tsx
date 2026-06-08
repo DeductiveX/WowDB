@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Table2, Search, ChevronRight, Lock, Loader2 } from "lucide-react";
+import { Table2, Search, ChevronRight, Lock, Loader2, GitFork } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,11 +84,18 @@ export default function ConnectionExplorerPage() {
         description={`${connection.user}@${connection.host}:${connection.port}`}
         actions={
           activeDb && (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/docs/${connId}?db=${activeDb}&pwd=${encodeURIComponent(password)}`}>
-                Generate Docs
-              </Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/connections/${connId}/erd?database=${activeDb}`}>
+                  <GitFork className="mr-1.5 h-3.5 w-3.5" /> ERD
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/docs/${connId}?db=${activeDb}&pwd=${encodeURIComponent(password)}`}>
+                  Generate Docs
+                </Link>
+              </Button>
+            </div>
           )
         }
       />
