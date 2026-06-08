@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Eye, Key, Link2, FileText } from "lucide-react";
@@ -13,11 +13,9 @@ import { ErrorState } from "@/components/error-state";
 import { api } from "@/lib/api";
 import type { TableDetail, PreviewResult } from "@/lib/types";
 
-export default function TableDetailPage() {
-  const { id, table } = useParams<{ id: string; table: string }>();
+function TableDetailContent({ connId, table }: { connId: number; table: string }) {
   const searchParams = useSearchParams();
   const database = searchParams.get("database") ?? "";
-  const connId = Number(id);
 
   const [detail, setDetail] = useState<TableDetail | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
@@ -202,5 +200,14 @@ export default function TableDetailPage() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+export default function TableDetailPage() {
+  const { id, table } = useParams<{ id: string; table: string }>();
+  return (
+    <Suspense fallback={<LoadingState message="Loading table…" />}>
+      <TableDetailContent connId={Number(id)} table={table} />
+    </Suspense>
   );
 }

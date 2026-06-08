@@ -21,18 +21,16 @@ BLOCKED_STATEMENT_TYPES = (
     exp.Update,
     exp.Delete,
     exp.Drop,
-    exp.Alter,
+    exp.AlterTable,   # sqlglot 23+: was exp.Alter
     exp.Create,
-    exp.Replace,
-    exp.Grant,
-    exp.Revoke,
     exp.Use,
     exp.Transaction,
     exp.Commit,
     exp.Rollback,
     exp.Merge,
-    exp.Truncate,
+    exp.TruncateTable,  # sqlglot 23+: was exp.Truncate
     exp.Set,
+    exp.Lock,
 )
 
 BLOCKED_KEYWORDS = [

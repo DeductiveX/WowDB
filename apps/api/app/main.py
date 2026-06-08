@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import init_db
-from app.routers import health, connections, explorer, query, docs
+from app.routers import health, connections, explorer, query, docs, erd
 
 
 @asynccontextmanager
@@ -35,3 +35,4 @@ app.include_router(connections.router)
 app.include_router(explorer.router)
 app.include_router(query.router)
 app.include_router(docs.router)
+app.include_router(erd.router)
