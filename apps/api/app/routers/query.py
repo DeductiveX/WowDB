@@ -3,14 +3,14 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.schemas.connection import QueryRequest
+from app.schemas.connection import QueryRequest, QueryResult
 from app.services import connection_service, mysql_service
 from app.services.query_guard import check_query
 
 router = APIRouter(prefix="/api", tags=["query"])
 
 
-@router.post("/query")
+@router.post("/query", response_model=QueryResult)
 def execute_query(
     req: QueryRequest,
     x_db_password: str | None = Header(default=None),

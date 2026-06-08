@@ -54,3 +54,14 @@ class QueryRequest(BaseModel):
     connection_id: int
     query: str = Field(..., min_length=1, max_length=10000)
     database: Optional[str] = None
+
+
+class QueryResult(BaseModel):
+    success: bool
+    blocked: bool
+    reason: Optional[str] = None
+    columns: list[str] = []
+    rows: list[dict] = []
+    count: int = 0
+    elapsed_ms: float = 0
+    normalized_query: Optional[str] = None

@@ -6,12 +6,10 @@ import ReactFlow, {
   MiniMap,
   useNodesState,
   useEdgesState,
-  addEdge,
   BackgroundVariant,
   MarkerType,
   type Node,
   type Edge,
-  type Connection,
 } from "reactflow";
 import dagre from "dagre";
 import { useRouter } from "next/navigation";
@@ -102,7 +100,9 @@ function toMermaid(data: ErdData): string {
     lines.push("  }");
   });
   data.edges.forEach((e) => {
-    lines.push(`  ${e.source} ||--o{ ${e.target} : "${e.source_handle}"`);
+    // source holds the FK column (many-side), target is the referenced table (one-side)
+    const cardinality = e.kind === "fk" ? "||--o{" : "}o--o{";
+    lines.push(`  ${e.target} ${cardinality} ${e.source} : "${e.source_handle}"`);
   });
   return lines.join("\n");
 }
@@ -121,13 +121,8 @@ export function ErdCanvas({ data, connectionId, database }: Props) {
   );
 
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
   const [copied, setCopied] = useState(false);
-
-  const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
-  );
 
   const handleNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -169,7 +164,6 @@ export function ErdCanvas({ data, connectionId, database }: Props) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
         onNodeDoubleClick={handleNodeDoubleClick}
         nodeTypes={nodeTypes}
         fitView
