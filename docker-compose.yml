@@ -1,0 +1,79 @@
+version: "3.9"
+
+services:
+  mysql-demo:
+    image: mysql:8.0
+    container_name: wowdb-mysql-demo
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass123
+      MYSQL_DATABASE: creditdb
+      MYSQL_USER: demo_user
+      MYSQL_PASSWORD: demo_pass123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./examples/mysql-sample/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./examples/mysql-sample/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "demo_user", "-pdemo_pass123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - wowdb-net
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: wowdb-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_DEBUG: "false"
+      WOWDB_DB_PATH: /data/wowdb.db
+      DEFAULT_QUERY_LIMIT: "100"
+      QUERY_TIMEOUT: "10"
+      CORS_ORIGINS: "http://localhost:3000"
+    volumes:
+      - api-data:/data
+    depends_on:
+      mysql-demo:
+        condition: service_healthy
+    networks:
+      - wowdb-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: wowdb-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - wowdb-net
+
+volumes:
+  mysql-data:
+  api-data:
+
+networks:
+  wowdb-net:
+    driver: bridge
