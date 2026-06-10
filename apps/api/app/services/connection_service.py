@@ -6,8 +6,10 @@ from app.schemas.connection import ConnectionCreateRequest
 def create_connection(db: Session, req: ConnectionCreateRequest) -> Connection:
     conn = Connection(
         name=req.name,
+        db_type=req.db_type,
         host=req.host,
         port=req.port,
+        db_path=req.db_path,
         database=req.database,
         user=req.user,
         # Password deliberately NOT stored

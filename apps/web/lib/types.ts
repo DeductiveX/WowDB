@@ -1,13 +1,33 @@
+export type DBType = "mysql" | "postgres" | "sqlite";
+
 export interface Connection {
   id: number;
   name: string;
-  host: string;
-  port: number;
+  db_type: DBType;
+  host: string | null;
+  port: number | null;
+  db_path: string | null;
   database: string | null;
-  user: string;
+  user: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ApiKey {
+  id: number;
+  name: string;
+  key_prefix: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ApiKeyCreated {
+  id: number;
+  name: string;
+  key: string;
+  key_prefix: string;
+  message: string;
 }
 
 export interface ConnectionTestResult {
@@ -19,10 +39,12 @@ export interface ConnectionTestResult {
 export interface SessionCreateResult {
   connection_id: number;
   name: string;
-  host: string;
-  port: number;
+  db_type: DBType;
+  host: string | null;
+  port: number | null;
+  db_path: string | null;
   database: string | null;
-  user: string;
+  user: string | null;
   message: string;
 }
 

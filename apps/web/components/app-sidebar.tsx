@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Database, PlugZap, Code2, Settings, ChevronRight, Sparkles } from "lucide-react";
+import { Database, PlugZap, Code2, Settings, ChevronRight, Sparkles, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIProviderDialog } from "@/components/ai/ai-provider-dialog";
 import { getAISettings } from "@/lib/ai";
@@ -11,6 +11,7 @@ const nav = [
   { href: "/", label: "Dashboard", icon: Database },
   { href: "/connections", label: "Connections", icon: PlugZap },
   { href: "/editor", label: "SQL Editor", icon: Code2 },
+  { href: "/history", label: "Query History", icon: History },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -31,7 +32,7 @@ export function AppSidebar() {
         </div>
         <span className="font-semibold tracking-tight">WowDB</span>
         <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-          v0.2
+          v0.3
         </span>
       </div>
 

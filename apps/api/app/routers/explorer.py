@@ -2,19 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services import connection_service, mysql_service
+from app.services import connection_service, db_service
 
 router = APIRouter(prefix="/api/connections", tags=["explorer"])
 
-# Credentials must be passed per-request via headers (never stored)
-# X-DB-Password: <password>
 
-
-def _get_creds(connection_id: int, db: Session, x_db_password: str | None) -> tuple:
+def _get_conn_and_pwd(connection_id: int, db: Session, x_db_password: str | None):
     conn = connection_service.get_connection(db, connection_id)
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
-    if not x_db_password:
+    if conn.db_type != "sqlite" and not x_db_password:
         raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
     return conn, x_db_password
 
@@ -25,9 +22,9 @@ def list_databases(
     x_db_password: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    conn, pwd = _get_creds(connection_id, db, x_db_password)
+    conn, pwd = _get_conn_and_pwd(connection_id, db, x_db_password)
     try:
-        databases = mysql_service.list_databases(conn.host, conn.port, conn.user, pwd)
+        databases = db_service.list_databases(conn, pwd)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"databases": databases}
@@ -40,9 +37,9 @@ def list_tables(
     x_db_password: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    conn, pwd = _get_creds(connection_id, db, x_db_password)
+    conn, pwd = _get_conn_and_pwd(connection_id, db, x_db_password)
     try:
-        tables = mysql_service.list_tables(conn.host, conn.port, conn.user, pwd, database)
+        tables = db_service.list_tables(conn, pwd, database)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"tables": tables, "database": database}
@@ -56,9 +53,9 @@ def describe_table(
     x_db_password: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    conn, pwd = _get_creds(connection_id, db, x_db_password)
+    conn, pwd = _get_conn_and_pwd(connection_id, db, x_db_password)
     try:
-        detail = mysql_service.describe_table(conn.host, conn.port, conn.user, pwd, database, table_name)
+        detail = db_service.describe_table(conn, pwd, database, table_name)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return detail
@@ -75,9 +72,9 @@ def preview_table(
 ):
     if limit > 500:
         limit = 500
-    conn, pwd = _get_creds(connection_id, db, x_db_password)
+    conn, pwd = _get_conn_and_pwd(connection_id, db, x_db_password)
     try:
-        result = mysql_service.preview_table(conn.host, conn.port, conn.user, pwd, database, table_name, limit)
+        result = db_service.preview_table(conn, pwd, database, table_name, limit)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result

@@ -1,16 +1,14 @@
 """
 ERD service — builds nodes and edges for the React Flow canvas.
-
-Edges come from two sources:
-  1. Explicit FK constraints (information_schema.KEY_COLUMN_USAGE)
-  2. Inferred relationships from column naming conventions (e.g. cliente_id → clientes.id)
+Supports MySQL, PostgreSQL and SQLite via db_service abstraction.
 """
 
-from app.services import mysql_service
+from app.models.connection import Connection
+from app.services import db_service
 
 
-def build_erd(host: str, port: int, user: str, password: str, database: str) -> dict:
-    tables = mysql_service.list_tables(host, port, user, password, database)
+def build_erd(conn: Connection, password: str | None, database: str) -> dict:
+    tables = db_service.list_tables(conn, password, database)
     table_names = [t["TABLE_NAME"] for t in tables]
     table_name_set = {n.lower() for n in table_names}
 
@@ -19,7 +17,7 @@ def build_erd(host: str, port: int, user: str, password: str, database: str) -> 
 
     for table in tables:
         name = table["TABLE_NAME"]
-        detail = mysql_service.describe_table(host, port, user, password, database, name)
+        detail = db_service.describe_table(conn, password, database, name)
 
         nodes.append({
             "id": name,
@@ -49,7 +47,6 @@ def build_erd(host: str, port: int, user: str, password: str, database: str) -> 
                 "kind": "fk",
             })
 
-    # Infer relationships from column naming conventions
     inferred_edges = _infer_edges(nodes, table_name_set, explicit_edges)
 
     return {
@@ -65,26 +62,21 @@ def _infer_edges(nodes: list, table_name_set: set, explicit_edges: list) -> list
     for node in nodes:
         for col in node["columns"]:
             col_name = col["name"].lower()
-
-            # Skip PKs and already-covered columns
             if col["key"] == "PRI":
                 continue
             if (node["id"], col["name"]) in explicit_pairs:
                 continue
-
             if not col_name.endswith("_id"):
                 continue
 
-            base = col_name[:-3]  # strip _id
+            base = col_name[:-3]
             candidates = [base, base + "s", base + "es", base.rstrip("e") + "es"]
             target_table = next((c for c in candidates if c in table_name_set), None)
 
             if not target_table or target_table == node["id"].lower():
                 continue
 
-            # Find actual cased table name
             actual_target = next(n["id"] for n in nodes if n["id"].lower() == target_table)
-
             edge_id = f"inferred_{node['id']}_{col['name']}"
             if edge_id in {e["id"] for e in inferred}:
                 continue

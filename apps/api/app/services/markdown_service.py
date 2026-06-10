@@ -1,60 +1,23 @@
-"""Generates Markdown documentation for a MySQL database schema."""
+"""Generates Markdown documentation for a database schema.
+Supports MySQL, PostgreSQL and SQLite via db_service abstraction."""
 
-from app.services.mysql_service import get_mysql_connection
+from app.models.connection import Connection
+from app.services import db_service
 
 
-def generate_schema_markdown(
-    host: str, port: int, user: str, password: str, database: str
-) -> str:
-    with get_mysql_connection(host, port, user, password, database) as conn:
-        with conn.cursor() as cur:
-            # Tables overview
-            cur.execute(
-                "SELECT TABLE_NAME, ENGINE, TABLE_ROWS, TABLE_COMMENT "
-                "FROM information_schema.TABLES "
-                "WHERE TABLE_SCHEMA = %s ORDER BY TABLE_NAME",
-                (database,),
-            )
-            tables = [dict(r) for r in cur.fetchall()]
+def generate_schema_markdown(conn: Connection, password: str | None, database: str) -> str:
+    tables = db_service.list_tables(conn, password, database)
 
-            # All columns for all tables in one query
-            cur.execute(
-                "SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, "
-                "IS_NULLABLE, COLUMN_TYPE, COLUMN_KEY, COLUMN_DEFAULT, EXTRA "
-                "FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = %s ORDER BY TABLE_NAME, ORDINAL_POSITION",
-                (database,),
-            )
-            all_columns: dict[str, list] = {}
-            for row in cur.fetchall():
-                all_columns.setdefault(row["TABLE_NAME"], []).append(dict(row))
+    all_columns: dict[str, list] = {}
+    all_indexes: dict[str, list] = {}
+    all_fks: dict[str, list] = {}
 
-            # All indexes in one query
-            cur.execute(
-                "SELECT TABLE_NAME, INDEX_NAME, NON_UNIQUE, COLUMN_NAME, INDEX_TYPE "
-                "FROM information_schema.STATISTICS "
-                "WHERE TABLE_SCHEMA = %s ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX",
-                (database,),
-            )
-            all_indexes: dict[str, list] = {}
-            for row in cur.fetchall():
-                all_indexes.setdefault(row["TABLE_NAME"], []).append(dict(row))
-
-            # All foreign keys in one query
-            cur.execute(
-                "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
-                "kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME "
-                "FROM information_schema.KEY_COLUMN_USAGE kcu "
-                "JOIN information_schema.TABLE_CONSTRAINTS tc "
-                "  ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME "
-                "  AND kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA "
-                "  AND kcu.TABLE_NAME = tc.TABLE_NAME "
-                "WHERE tc.CONSTRAINT_TYPE = 'FOREIGN KEY' AND kcu.TABLE_SCHEMA = %s",
-                (database,),
-            )
-            all_fks: dict[str, list] = {}
-            for row in cur.fetchall():
-                all_fks.setdefault(row["TABLE_NAME"], []).append(dict(row))
+    for table in tables:
+        name = table["TABLE_NAME"]
+        detail = db_service.describe_table(conn, password, database, name)
+        all_columns[name] = detail.get("columns", [])
+        all_indexes[name] = detail.get("indexes", [])
+        all_fks[name] = detail.get("foreign_keys", [])
 
     lines: list[str] = []
     lines.append(f"# Database Schema: `{database}`\n")
@@ -81,7 +44,6 @@ def generate_schema_markdown(
         if comment:
             lines.append(f"_{comment}_\n")
 
-        # Columns
         lines.append("### Columns\n")
         lines.append("| Column | Type | Nullable | Key | Default | Extra |")
         lines.append("|---|---|---|---|---|---|")
@@ -95,7 +57,6 @@ def generate_schema_markdown(
                 f"| {col.get('EXTRA', '') or '—'} |"
             )
 
-        # Indexes
         indexes = all_indexes.get(table_name, [])
         if indexes:
             lines.append("\n### Indexes\n")
@@ -115,7 +76,6 @@ def generate_schema_markdown(
                     f"| {idx.get('INDEX_TYPE', '')} |"
                 )
 
-        # Foreign keys
         fks = all_fks.get(table_name, [])
         if fks:
             lines.append("\n### Foreign Keys\n")

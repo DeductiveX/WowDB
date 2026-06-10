@@ -9,23 +9,40 @@ from app.schemas.connection import (
     ConnectionTestResult,
     SessionCreateResult,
 )
-from app.services import connection_service, mysql_service
+from app.services import connection_service
+from app.services import db_service
 
 router = APIRouter(prefix="/api/connections", tags=["connections"])
 
 
 @router.post("/test", response_model=ConnectionTestResult)
 def test_connection(req: ConnectionTestRequest):
-    ok, message, latency = mysql_service.test_connection(
-        req.host, req.port, req.user, req.password, req.database
+    from app.models.connection import Connection as ConnModel
+    # Build a transient model object for db_service dispatch
+    mock = ConnModel(
+        db_type=req.db_type,
+        host=req.host,
+        port=req.port,
+        db_path=req.db_path,
+        database=req.database,
+        user=req.user,
     )
+    ok, message, latency = db_service.test_connection(mock, req.password)
     return ConnectionTestResult(success=ok, message=message, latency_ms=latency)
 
 
 @router.post("/session", response_model=SessionCreateResult)
 def create_session(req: ConnectionCreateRequest, db: Session = Depends(get_db)):
-    # Test first
-    ok, message, _ = mysql_service.test_connection(req.host, req.port, req.user, req.password, req.database)
+    from app.models.connection import Connection as ConnModel
+    mock = ConnModel(
+        db_type=req.db_type,
+        host=req.host,
+        port=req.port,
+        db_path=req.db_path,
+        database=req.database,
+        user=req.user,
+    )
+    ok, message, _ = db_service.test_connection(mock, req.password)
     if not ok:
         raise HTTPException(status_code=400, detail=f"Cannot connect: {message}")
 
@@ -33,8 +50,10 @@ def create_session(req: ConnectionCreateRequest, db: Session = Depends(get_db)):
     return SessionCreateResult(
         connection_id=conn.id,
         name=conn.name,
+        db_type=conn.db_type,
         host=conn.host,
         port=conn.port,
+        db_path=conn.db_path,
         database=conn.database,
         user=conn.user,
         message="Session created. Password was NOT stored.",

@@ -10,7 +10,20 @@ import type {
   HealthResult,
   ErdData,
   SchemaContext,
+  ApiKey,
+  ApiKeyCreated,
+  DBType,
 } from "./types";
+
+export interface ConnectionPayload {
+  db_type: DBType;
+  host?: string;
+  port?: number;
+  db_path?: string;
+  database?: string;
+  user?: string;
+  password?: string;
+}
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -39,27 +52,14 @@ export const api = {
     return request("/health");
   },
 
-  testConnection(data: {
-    host: string;
-    port: number;
-    database?: string;
-    user: string;
-    password: string;
-  }): Promise<ConnectionTestResult> {
+  testConnection(data: ConnectionPayload): Promise<ConnectionTestResult> {
     return request("/api/connections/test", {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
 
-  createSession(data: {
-    name: string;
-    host: string;
-    port: number;
-    database?: string;
-    user: string;
-    password: string;
-  }): Promise<SessionCreateResult> {
+  createSession(data: ConnectionPayload & { name: string }): Promise<SessionCreateResult> {
     return request("/api/connections/session", {
       method: "POST",
       body: JSON.stringify(data),
@@ -120,5 +120,17 @@ export const api = {
 
   getAIContext(connectionId: number, database: string, password: string): Promise<SchemaContext> {
     return request(`/api/connections/${connectionId}/ai-context?database=${encodeURIComponent(database)}`, {}, password);
+  },
+
+  listApiKeys(): Promise<ApiKey[]> {
+    return request("/api/keys");
+  },
+
+  createApiKey(name: string): Promise<ApiKeyCreated> {
+    return request("/api/keys", { method: "POST", body: JSON.stringify({ name }) });
+  },
+
+  deleteApiKey(id: number): Promise<{ message: string }> {
+    return request(`/api/keys/${id}`, { method: "DELETE" });
   },
 };

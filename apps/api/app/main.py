@@ -1,10 +1,14 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
+from app.auth import require_api_key
 from app.config import get_settings
 from app.database import init_db
-from app.routers import health, connections, explorer, query, docs, erd, ai_context
+from app.limiter import limiter
+from app.routers import health, connections, explorer, query, docs, erd, ai_context, api_keys
 
 
 @asynccontextmanager
@@ -17,10 +21,13 @@ settings = get_settings()
 
 app = FastAPI(
     title="WowDB API",
-    description="AI-native open-source database workbench — read-only MySQL explorer",
+    description="AI-native open-source database workbench — read-only MySQL / PostgreSQL / SQLite explorer",
     version=settings.version,
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,10 +37,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Public routes (no API key required)
 app.include_router(health.router)
-app.include_router(connections.router)
-app.include_router(explorer.router)
-app.include_router(query.router)
-app.include_router(docs.router)
-app.include_router(erd.router)
-app.include_router(ai_context.router)
+
+# Protected routes — when API_KEY_REQUIRED=true, X-API-Key is enforced
+protected_deps = [Depends(require_api_key)]
+app.include_router(connections.router, dependencies=protected_deps)
+app.include_router(explorer.router, dependencies=protected_deps)
+app.include_router(query.router, dependencies=protected_deps)
+app.include_router(docs.router, dependencies=protected_deps)
+app.include_router(erd.router, dependencies=protected_deps)
+app.include_router(ai_context.router, dependencies=protected_deps)
+app.include_router(api_keys.router, dependencies=protected_deps)

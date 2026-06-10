@@ -8,14 +8,29 @@ class Connection(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(120), nullable=False)
-    host = Column(String(255), nullable=False)
-    port = Column(Integer, nullable=False, default=3306)
+    # db_type: mysql | postgres | sqlite
+    db_type = Column(String(20), nullable=False, default="mysql")
+    host = Column(String(255), nullable=True)
+    port = Column(Integer, nullable=True)
+    # For SQLite connections: path to the .db file
+    db_path = Column(String(500), nullable=True)
     database = Column(String(120), nullable=True)
-    user = Column(String(120), nullable=False)
+    user = Column(String(120), nullable=True)
     # Password is NEVER stored
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False)
+    key_hash = Column(String(64), nullable=False, unique=True, index=True)
+    key_prefix = Column(String(8), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class QueryHistory(Base):

@@ -15,15 +15,14 @@ def get_erd(
     x_db_password: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if not x_db_password:
-        raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
-
     conn = connection_service.get_connection(db, connection_id)
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
+    if conn.db_type != "sqlite" and not x_db_password:
+        raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
 
     try:
-        data = build_erd(conn.host, conn.port, conn.user, x_db_password, database)
+        data = build_erd(conn, x_db_password, database)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

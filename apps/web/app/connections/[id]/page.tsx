@@ -14,6 +14,7 @@ import { LoadingState } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { ChatPanel } from "@/components/ai/chat-panel";
 import { api } from "@/lib/api";
+import { connectionLabel } from "@/lib/utils";
 import type { Connection, TableInfo, SchemaContext } from "@/lib/types";
 
 export default function ConnectionExplorerPage() {
@@ -34,7 +35,14 @@ export default function ConnectionExplorerPage() {
   const [schemaCtx, setSchemaCtx] = useState<SchemaContext | null>(null);
 
   useEffect(() => {
-    api.getConnection(connId).then(setConnection).catch(() => router.push("/connections"));
+    api.getConnection(connId).then((c) => {
+      setConnection(c);
+      // SQLite has no password — auto-authenticate so the explorer doesn't gate on a password prompt.
+      if (c.db_type === "sqlite") {
+        setPassword("__sqlite__");
+        sessionStorage.setItem(`pwd_${connId}`, "__sqlite__");
+      }
+    }).catch(() => router.push("/connections"));
     const saved = sessionStorage.getItem(`pwd_${connId}`);
     if (saved) setPassword(saved);
   }, [connId, router]);
@@ -77,6 +85,14 @@ export default function ConnectionExplorerPage() {
     }
   };
 
+  // Auto-authenticate once both connection + password are available (e.g. on reload, or for sqlite)
+  useEffect(() => {
+    if (!authenticated && !loading && connection && password) {
+      handleAuth();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection, password]);
+
   const filtered = tables.filter((t) =>
     t.TABLE_NAME.toLowerCase().includes(search.toLowerCase())
   );
@@ -88,7 +104,7 @@ export default function ConnectionExplorerPage() {
       <div className="flex flex-col">
         <AppHeader
           title={connection.name}
-          description={`${connection.user}@${connection.host}:${connection.port}`}
+          description={connectionLabel(connection)}
           actions={
             activeDb && (
               <div className="flex gap-2">

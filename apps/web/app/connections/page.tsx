@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { LoadingState } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/utils";
+import { formatDate, connectionLabel } from "@/lib/utils";
 import type { Connection } from "@/lib/types";
 
 export default function ConnectionsPage() {
@@ -83,10 +83,10 @@ export default function ConnectionsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm truncate">{conn.name}</span>
-                  <Badge variant="secondary" className="text-[10px] shrink-0">MySQL</Badge>
+                  <Badge variant="secondary" className="text-[10px] shrink-0 uppercase">{conn.db_type}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
-                  {conn.user}@{conn.host}:{conn.port}{conn.database ? `/${conn.database}` : ""}
+                  {connectionLabel(conn)}{conn.db_type !== "sqlite" && conn.database ? `/${conn.database}` : ""}
                 </p>
               </div>
               <div className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">

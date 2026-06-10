@@ -1,6 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Clock, Rows3, Download } from "lucide-react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { AlertCircle, CheckCircle2, Clock, Rows3, Download, History } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { SqlEditor } from "@/components/sql-editor";
 import { DataTable } from "@/components/data-table";
@@ -17,9 +19,12 @@ import { api } from "@/lib/api";
 import { getAISettings } from "@/lib/ai";
 import { useStream } from "@/lib/use-stream";
 import { PROMPTS, serializeSchema } from "@/lib/ai-prompts";
+import { addQueryToHistory } from "@/lib/query-history";
 import type { Connection, QueryResult, SchemaContext } from "@/lib/types";
 
-export default function EditorPage() {
+function EditorContent() {
+  const searchParams = useSearchParams();
+
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [database, setDatabase] = useState("");
@@ -33,41 +38,83 @@ export default function EditorPage() {
   const optimize = useStream();
 
   useEffect(() => {
-    api.listConnections().then((list) => {
-      setConnections(list);
-      if (list.length > 0) setSelectedId(list[0].id);
-    });
+    api.listConnections().then(setConnections);
   }, []);
+
+  // React to ?q=/?conn= changes (e.g. clicking a query in /history while editor is already open)
+  useEffect(() => {
+    if (connections.length === 0) return;
+    const connParam = searchParams.get("conn");
+    const qParam = searchParams.get("q");
+    if (qParam) setQuery(qParam);
+    if (connParam) {
+      const id = Number(connParam);
+      if (connections.find((c) => c.id === id)) {
+        setSelectedId(id);
+        return;
+      }
+    }
+    setSelectedId((cur) => cur ?? connections[0].id);
+  }, [searchParams, connections]);
 
   useEffect(() => {
     if (!selectedId) return;
-    const saved = sessionStorage.getItem(`pwd_${selectedId}`);
-    if (saved) setPassword(saved);
     const conn = connections.find((c) => c.id === selectedId);
+    if (conn?.db_type === "sqlite") {
+      setPassword("__sqlite__");
+    } else {
+      const saved = sessionStorage.getItem(`pwd_${selectedId}`);
+      if (saved) setPassword(saved);
+    }
     if (conn?.database) setDatabase(conn.database);
   }, [selectedId, connections]);
 
-  // Fetch schema context when connection + database + password are set
+  const isSqlite = (() => {
+    const conn = connections.find((c) => c.id === selectedId);
+    return conn?.db_type === "sqlite";
+  })();
+
   useEffect(() => {
-    if (!selectedId || !database || !password) { setSchemaCtx(null); return; }
-    api.getAIContext(selectedId, database, password)
+    if (!selectedId) { setSchemaCtx(null); return; }
+    if (!isSqlite && (!database || !password)) { setSchemaCtx(null); return; }
+    api.getAIContext(selectedId, database, password || "")
       .then(setSchemaCtx)
       .catch(() => setSchemaCtx(null));
-  }, [selectedId, database, password]);
+  }, [selectedId, database, password, isSqlite]);
 
   const handleRun = async () => {
-    if (!selectedId || !password) return;
+    if (!selectedId) return;
+    if (!isSqlite && !password) return;
     setLoading(true);
     explain.reset();
     optimize.reset();
     try {
       const res = await api.executeQuery(selectedId, query, password, database || undefined);
       setResult(res);
+      const conn = connections.find((c) => c.id === selectedId);
+      addQueryToHistory({
+        query,
+        connectionId: selectedId,
+        connectionName: conn?.name ?? String(selectedId),
+        database: database || null,
+        blocked: res.blocked,
+        blockReason: res.reason ?? null,
+        rowCount: res.count,
+        elapsedMs: res.elapsed_ms,
+      });
     } catch (e: unknown) {
-      setResult({
-        success: false, blocked: false,
-        reason: e instanceof Error ? e.message : "Unknown error",
-        columns: [], rows: [], count: 0, elapsed_ms: 0,
+      const reason = e instanceof Error ? e.message : "Unknown error";
+      setResult({ success: false, blocked: false, reason, columns: [], rows: [], count: 0, elapsed_ms: 0 });
+      const conn = connections.find((c) => c.id === selectedId);
+      addQueryToHistory({
+        query,
+        connectionId: selectedId,
+        connectionName: conn?.name ?? String(selectedId),
+        database: database || null,
+        blocked: false,
+        blockReason: reason,
+        rowCount: 0,
+        elapsedMs: 0,
       });
     } finally {
       setLoading(false);
@@ -133,11 +180,16 @@ export default function EditorPage() {
         title="SQL Editor"
         description="Read-only query execution"
         actions={
-          <AIProviderDialog>
-            <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground">
-              ✦ {getAISettings() ? "AI ✓" : "AI Setup"}
+          <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground">
+              <Link href="/history"><History className="h-3.5 w-3.5" /> History</Link>
             </Button>
-          </AIProviderDialog>
+            <AIProviderDialog>
+              <Button variant="ghost" size="sm" className="text-xs gap-1.5 text-muted-foreground">
+                ✦ {getAISettings() ? "AI ✓" : "AI Setup"}
+              </Button>
+            </AIProviderDialog>
+          </div>
         }
       />
 
@@ -161,10 +213,12 @@ export default function EditorPage() {
             <Label className="text-xs">Database</Label>
             <Input className="h-9 w-40" placeholder="database name" value={database} onChange={(e) => setDatabase(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Password</Label>
-            <Input className="h-9 w-40" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
+          {!isSqlite && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Password</Label>
+              <Input className="h-9 w-40" type="password" placeholder="••••••••" value={password === "__sqlite__" ? "" : password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+          )}
         </div>
 
         {/* NL → SQL bar */}
@@ -247,5 +301,13 @@ export default function EditorPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense fallback={null}>
+      <EditorContent />
+    </Suspense>
   );
 }

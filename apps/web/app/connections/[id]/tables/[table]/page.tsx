@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Eye, Key, Link2 } from "lucide-react";
+import { ArrowLeft, Eye, Key, Link2, Code2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,11 +65,18 @@ function TableDetailContent({ connId, table }: { connId: number; table: string }
         title={table}
         description={`${database} · ${detail.columns.length} columns`}
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/connections/${connId}`}>
-              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/editor?q=${encodeURIComponent(`SELECT * FROM \`${table}\` LIMIT 100`)}&conn=${connId}`}>
+                <Code2 className="mr-1.5 h-3.5 w-3.5" /> Open in Editor
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/connections/${connId}${database ? `?db=${encodeURIComponent(database)}` : ""}`}>
+                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
+              </Link>
+            </Button>
+          </div>
         }
       />
 

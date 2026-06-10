@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     query_timeout: int = 10
 
     cors_origins: str = "http://localhost:3000"
+    api_key_required: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -1,27 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
+from app.limiter import limiter
 from app.schemas.connection import QueryRequest, QueryResult
-from app.services import connection_service, mysql_service
+from app.services import connection_service, db_service
 from app.services.query_guard import check_query
 
 router = APIRouter(prefix="/api", tags=["query"])
 
 
 @router.post("/query", response_model=QueryResult)
+@limiter.limit("30/minute")
 def execute_query(
+    request: Request,
     req: QueryRequest,
     x_db_password: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if not x_db_password:
-        raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
-
     conn = connection_service.get_connection(db, req.connection_id)
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
+
+    if conn.db_type != "sqlite" and not x_db_password:
+        raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
 
     settings = get_settings()
     guard = check_query(req.query, settings.default_query_limit)
@@ -39,9 +42,7 @@ def execute_query(
 
     database = req.database or conn.database
     try:
-        result = mysql_service.execute_query(
-            conn.host, conn.port, conn.user, x_db_password, database, guard.normalized_query
-        )
+        result = db_service.execute_query(conn, x_db_password, database, guard.normalized_query)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -15,15 +15,14 @@ def generate_docs(
     x_db_password: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if not x_db_password:
-        raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
-
     conn = connection_service.get_connection(db, connection_id)
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
+    if conn.db_type != "sqlite" and not x_db_password:
+        raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
 
     try:
-        markdown = generate_schema_markdown(conn.host, conn.port, conn.user, x_db_password, database)
+        markdown = generate_schema_markdown(conn, x_db_password, database)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

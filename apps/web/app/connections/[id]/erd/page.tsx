@@ -54,11 +54,18 @@ function ErdContent({ connId }: { connId: number }) {
       title={`ERD — ${database}`}
       description="Entity Relationship Diagram · double-click a table to explore"
       actions={
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/connections/${connId}`}>
-            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Back
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/editor?q=${encodeURIComponent(`-- ${database}\nSELECT * FROM `)}&conn=${connId}`}>
+              Open Editor
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/connections/${connId}${database ? `?db=${encodeURIComponent(database)}` : ""}`}>
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Explorer
+            </Link>
+          </Button>
+        </div>
       }
     />
   );
