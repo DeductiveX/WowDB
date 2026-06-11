@@ -14,7 +14,8 @@ import type { DBType } from "@/lib/types";
 const DB_TYPES: { value: DBType; label: string; defaultPort: number | null }[] = [
   { value: "mysql", label: "MySQL", defaultPort: 3306 },
   { value: "postgres", label: "PostgreSQL", defaultPort: 5432 },
-  { value: "sqlite", label: "SQLite (local file)", defaultPort: null },
+  { value: "sqlite", label: "SQLite (local)", defaultPort: null },
+  { value: "duckdb", label: "DuckDB (CSV/Parquet)", defaultPort: null },
 ];
 
 interface FormState {
@@ -63,7 +64,7 @@ export default function NewConnectionPage() {
     setErrors({});
   };
 
-  const isSqlite = form.db_type === "sqlite";
+  const isSqlite = form.db_type === "sqlite" || form.db_type === "duckdb";
 
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormState, string>> = {};
@@ -168,13 +169,21 @@ export default function NewConnectionPage() {
               {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
 
-            {/* SQLite path */}
+            {/* SQLite/DuckDB path */}
             {isSqlite ? (
               <div className="space-y-1.5">
-                <Label>File path</Label>
-                <Input placeholder="/path/to/database.db" value={form.db_path} onChange={set("db_path")} />
+                <Label>{form.db_type === "duckdb" ? "Folder with .csv / .parquet / .json files (or .duckdb file)" : "File path"}</Label>
+                <Input
+                  placeholder={form.db_type === "duckdb" ? "C:/data/csvs/ or C:/data/mydb.duckdb" : "/path/to/database.db"}
+                  value={form.db_path}
+                  onChange={set("db_path")}
+                />
                 {errors.db_path && <p className="text-xs text-destructive">{errors.db_path}</p>}
-                <p className="text-xs text-muted-foreground">Absolute path to the .db / .sqlite file accessible by the WowDB API server.</p>
+                <p className="text-xs text-muted-foreground">
+                  {form.db_type === "duckdb"
+                    ? "Each CSV/Parquet/JSON file in the folder becomes a queryable table."
+                    : "Absolute path to the .db / .sqlite file accessible by the WowDB API server."}
+                </p>
               </div>
             ) : (
               <>

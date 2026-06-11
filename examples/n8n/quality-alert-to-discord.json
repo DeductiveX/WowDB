@@ -1,0 +1,50 @@
+{
+  "name": "WowDB → Discord: Quality Monitor Failed",
+  "nodes": [
+    {
+      "parameters": { "path": "wowdb-quality", "options": {} },
+      "id": "webhook-1",
+      "name": "Webhook (from WowDB)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "wowdb-quality"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json.body?.data || $input.first().json.data || {};\nreturn [{ json: {\n  content: `:rotating_light: **Quality monitor failed**\\n**${d.name}**\\nExpected ${d.assertion} ${d.expected}, got ${d.actual}\\n${d.message || ''}`\n} }];"
+      },
+      "id": "format-1",
+      "name": "Format Discord Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/YOUR_DISCORD_WEBHOOK_URL",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [{ "name": "content", "value": "={{ $json.content }}" }]
+        },
+        "options": {}
+      },
+      "id": "http-1",
+      "name": "Post to Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook (from WowDB)": {
+      "main": [[ { "node": "Format Discord Message", "type": "main", "index": 0 } ]]
+    },
+    "Format Discord Message": {
+      "main": [[ { "node": "Post to Discord", "type": "main", "index": 0 } ]]
+    }
+  },
+  "settings": {},
+  "active": false
+}

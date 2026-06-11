@@ -17,7 +17,7 @@ def get_ai_context(
     conn = connection_service.get_connection(db, connection_id)
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
-    if conn.db_type != "sqlite" and not x_db_password:
+    if conn.db_type not in ("sqlite", "duckdb") and not x_db_password:
         raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
 
     try:

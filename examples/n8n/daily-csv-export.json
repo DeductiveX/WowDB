@@ -1,0 +1,67 @@
+{
+  "name": "WowDB → Daily CSV Export",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 6 * * *" }]
+        }
+      },
+      "id": "cron-1",
+      "name": "Every day 6am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "wdb_YOUR_KEY_HERE" },
+            { "name": "X-DB-Password", "value": "YOUR_DB_PASSWORD" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "connection_id", "value": "1" },
+            { "name": "query", "value": "SELECT * FROM contratos WHERE created_at >= CURRENT_DATE - INTERVAL 1 DAY" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-1",
+      "name": "Run query on WowDB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "csv",
+        "options": {
+          "fileName": "daily-export-{{$now.format('yyyy-MM-dd')}}.csv"
+        }
+      },
+      "id": "spreadsheet-1",
+      "name": "Rows → CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Every day 6am": {
+      "main": [[ { "node": "Run query on WowDB", "type": "main", "index": 0 } ]]
+    },
+    "Run query on WowDB": {
+      "main": [[ { "node": "Rows → CSV", "type": "main", "index": 0 } ]]
+    }
+  },
+  "settings": {},
+  "active": false
+}

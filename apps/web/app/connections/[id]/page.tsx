@@ -13,6 +13,8 @@ import { EmptyState } from "@/components/empty-state";
 import { LoadingState } from "@/components/loading-state";
 import { ErrorState } from "@/components/error-state";
 import { ChatPanel } from "@/components/ai/chat-panel";
+import { PIIScanner } from "@/components/pii-scanner";
+import { Camera } from "lucide-react";
 import { api } from "@/lib/api";
 import { connectionLabel } from "@/lib/utils";
 import type { Connection, TableInfo, SchemaContext } from "@/lib/types";
@@ -38,7 +40,7 @@ export default function ConnectionExplorerPage() {
     api.getConnection(connId).then((c) => {
       setConnection(c);
       // SQLite has no password — auto-authenticate so the explorer doesn't gate on a password prompt.
-      if (c.db_type === "sqlite") {
+      if (c.db_type === "sqlite" || c.db_type === "duckdb") {
         setPassword("__sqlite__");
         sessionStorage.setItem(`pwd_${connId}`, "__sqlite__");
       }
@@ -108,6 +110,22 @@ export default function ConnectionExplorerPage() {
           actions={
             activeDb && (
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await api.createSnapshot(connId, activeDb, password);
+                      alert("Snapshot captured. See Automations → Snapshots.");
+                    } catch (e) {
+                      alert(`Failed: ${e instanceof Error ? e.message : "unknown"}`);
+                    }
+                  }}
+                  title="Capture schema snapshot now"
+                >
+                  <Camera className="mr-1.5 h-3.5 w-3.5" /> Snapshot
+                </Button>
+                <PIIScanner connectionId={connId} database={activeDb} password={password} />
                 <Button
                   variant="outline"
                   size="sm"

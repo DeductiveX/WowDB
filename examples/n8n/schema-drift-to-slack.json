@@ -1,0 +1,55 @@
+{
+  "name": "WowDB → Slack: Schema Drift Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "wowdb-drift",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Webhook (from WowDB)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "wowdb-drift"
+    },
+    {
+      "parameters": {
+        "jsCode": "const { data } = $input.first().json.body || $input.first().json;\nconst d = data?.diff || {};\nconst lines = [];\nif (d.tables_added?.length) lines.push(`*Added tables:* ${d.tables_added.join(', ')}`);\nif (d.tables_removed?.length) lines.push(`*Removed tables:* ${d.tables_removed.join(', ')}`);\nif (d.columns_added?.length) lines.push(`*Added columns:* ${d.columns_added.map(c => `${c.table}.${c.column}`).join(', ')}`);\nif (d.columns_removed?.length) lines.push(`*Removed columns:* ${d.columns_removed.map(c => `${c.table}.${c.column}`).join(', ')}`);\nif (d.columns_changed?.length) lines.push(`*Changed columns:* ${d.columns_changed.map(c => `${c.table}.${c.column}`).join(', ')}`);\nreturn [{ json: { text: `:warning: *Schema drift detected on DB ${data.database}*\\n` + (lines.join('\\n') || 'No diff?') } }];"
+      },
+      "id": "format-1",
+      "name": "Format Diff Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0000000000",
+          "mode": "id"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "id": "slack-1",
+      "name": "Send to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook (from WowDB)": {
+      "main": [[ { "node": "Format Diff Message", "type": "main", "index": 0 } ]]
+    },
+    "Format Diff Message": {
+      "main": [[ { "node": "Send to Slack", "type": "main", "index": 0 } ]]
+    }
+  },
+  "settings": {},
+  "active": false
+}

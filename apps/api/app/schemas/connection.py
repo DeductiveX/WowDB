@@ -2,13 +2,13 @@ from datetime import datetime
 from typing import Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
-DBType = Literal["mysql", "postgres", "sqlite"]
+DBType = Literal["mysql", "postgres", "sqlite", "duckdb"]
 
 
 def _validate_db_fields(values: "ConnectionTestRequest | ConnectionCreateRequest"):
-    if values.db_type == "sqlite":
+    if values.db_type in ("sqlite", "duckdb"):
         if not values.db_path:
-            raise ValueError("db_path is required for sqlite connections")
+            raise ValueError(f"db_path is required for {values.db_type} connections")
     else:
         missing = [k for k, v in (("host", values.host), ("user", values.user), ("password", values.password)) if not v]
         if missing:

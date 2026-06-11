@@ -2,14 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services import connection_service
-from app.services.erd_service import build_erd
+from app.services import connection_service, pii_service
 
-router = APIRouter(prefix="/api/connections", tags=["erd"])
+router = APIRouter(prefix="/api/connections", tags=["pii"])
 
 
-@router.get("/{connection_id}/erd")
-def get_erd(
+@router.get("/{connection_id}/scan-pii")
+def scan_pii(
     connection_id: int,
     database: str,
     x_db_password: str | None = Header(default=None),
@@ -20,10 +19,8 @@ def get_erd(
         raise HTTPException(status_code=404, detail="Connection not found")
     if conn.db_type not in ("sqlite", "duckdb") and not x_db_password:
         raise HTTPException(status_code=401, detail="Missing X-DB-Password header")
-
     try:
-        data = build_erd(conn, x_db_password, database)
+        findings = pii_service.scan(conn, x_db_password, database)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-    return data
+    return {"database": database, "findings": findings, "count": len(findings)}

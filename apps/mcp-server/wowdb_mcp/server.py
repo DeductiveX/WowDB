@@ -1,6 +1,7 @@
-"""WowDB MCP Server — exposes database tools to Claude, Cursor and N8n."""
+"""WowDB MCP Server — exposes database tools and schema resources to Claude, Cursor and N8n."""
 
 import json
+import os
 import sys
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -9,6 +10,71 @@ from mcp import types
 from wowdb_mcp import client
 
 server = Server("wowdb")
+
+
+# ── Resources: schemas exposed as virtual files ────────────────────────
+
+@server.list_resources()
+async def list_resources() -> list[types.Resource]:
+    """Expose each saved connection as a resource URI.
+    Claude can read these without calling a tool — schema arrives as context."""
+    out: list[types.Resource] = []
+    try:
+        connections = client.list_connections()
+    except Exception:
+        return out
+    for c in connections:
+        cid = c["id"]
+        name = c["name"]
+        out.append(types.Resource(
+            uri=f"wowdb://connection/{cid}",
+            name=f"{name} — connection info",
+            description=f"WowDB connection #{cid} ({c.get('db_type', '?')})",
+            mimeType="application/json",
+        ))
+        out.append(types.Resource(
+            uri=f"wowdb://connection/{cid}/databases",
+            name=f"{name} — databases list",
+            description="List of databases on this connection",
+            mimeType="application/json",
+        ))
+    return out
+
+
+@server.read_resource()
+async def read_resource(uri: str) -> str:
+    """Return the JSON content for a wowdb:// URI."""
+    if not uri.startswith("wowdb://"):
+        raise ValueError(f"Unsupported URI scheme: {uri}")
+    path = uri[len("wowdb://"):]
+    parts = path.split("/")
+    # connection/{id}
+    if len(parts) == 2 and parts[0] == "connection":
+        cid = int(parts[1])
+        conns = [c for c in client.list_connections() if c["id"] == cid]
+        return json.dumps(conns[0] if conns else {}, indent=2)
+    # connection/{id}/databases  (no password — only works for sqlite/duckdb)
+    if len(parts) == 3 and parts[0] == "connection" and parts[2] == "databases":
+        cid = int(parts[1])
+        # Need a password to call /databases; for sqlite/duckdb backend ignores it.
+        # If WOWDB_DB_PASSWORD env is set, use it as a default.
+        pwd = os.environ.get("WOWDB_DB_PASSWORD", "__sqlite__")
+        try:
+            dbs = client.list_databases(cid, pwd)
+            return json.dumps(dbs, indent=2)
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+    # schema/{conn}/{database}  (requires password env)
+    if len(parts) == 3 and parts[0] == "schema":
+        cid = int(parts[1])
+        database = parts[2]
+        pwd = os.environ.get("WOWDB_DB_PASSWORD", "__sqlite__")
+        try:
+            ctx = client.get_schema_context(cid, database, pwd)
+            return json.dumps(ctx, indent=2)
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+    raise ValueError(f"Unknown wowdb URI: {uri}")
 
 
 @server.list_tools()

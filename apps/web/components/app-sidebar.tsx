@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Database, PlugZap, Code2, Settings, ChevronRight, Sparkles, History } from "lucide-react";
+import { Database, PlugZap, Code2, Settings, ChevronRight, Sparkles, History, Search, Bookmark, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIProviderDialog } from "@/components/ai/ai-provider-dialog";
 import { getAISettings } from "@/lib/ai";
@@ -11,9 +11,16 @@ const nav = [
   { href: "/", label: "Dashboard", icon: Database },
   { href: "/connections", label: "Connections", icon: PlugZap },
   { href: "/editor", label: "SQL Editor", icon: Code2 },
+  { href: "/queries", label: "Saved Queries", icon: Bookmark },
   { href: "/history", label: "Query History", icon: History },
+  { href: "/automations", label: "Automations", icon: Zap },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+function dispatchOpenPalette() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, metaKey: true, bubbles: true }));
+}
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -34,6 +41,18 @@ export function AppSidebar() {
         <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
           v0.3
         </span>
+      </div>
+
+      {/* Search trigger */}
+      <div className="px-3 pt-3">
+        <button
+          onClick={dispatchOpenPalette}
+          className="w-full flex items-center gap-2.5 rounded-md border bg-background/60 px-2.5 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+        >
+          <Search className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 text-left">Search…</span>
+          <kbd className="rounded border bg-muted px-1 py-0.5 text-[9px] font-mono">⌘K</kbd>
+        </button>
       </div>
 
       {/* Nav */}

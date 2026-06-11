@@ -1,0 +1,84 @@
+{
+  "name": "WowDB → GitHub: Daily Schema Snapshot",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 2 * * *" }] }
+      },
+      "id": "cron-1",
+      "name": "Every day 2am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/snapshots",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "wdb_YOUR_KEY_HERE" },
+            { "name": "X-DB-Password", "value": "YOUR_DB_PASSWORD" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"connection_id\": 1, \"database\": \"mydb\" }",
+        "options": {}
+      },
+      "id": "snap-1",
+      "name": "Create snapshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://localhost:8000/api/docs/1?database=mydb",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-API-Key", "value": "wdb_YOUR_KEY_HERE" },
+            { "name": "X-DB-Password", "value": "YOUR_DB_PASSWORD" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "docs-1",
+      "name": "Get Markdown docs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "owner": { "__rl": true, "value": "your-org", "mode": "list" },
+        "repository": { "__rl": true, "value": "your-repo", "mode": "list" },
+        "filePath": "docs/schema.md",
+        "fileContent": "={{ $json.markdown }}",
+        "commitMessage": "chore(schema): daily snapshot {{$now.format('yyyy-MM-dd')}}"
+      },
+      "id": "gh-1",
+      "name": "Commit to GitHub",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Every day 2am": {
+      "main": [[ { "node": "Create snapshot", "type": "main", "index": 0 } ]]
+    },
+    "Create snapshot": {
+      "main": [[ { "node": "Get Markdown docs", "type": "main", "index": 0 } ]]
+    },
+    "Get Markdown docs": {
+      "main": [[ { "node": "Commit to GitHub", "type": "main", "index": 0 } ]]
+    }
+  },
+  "settings": {},
+  "active": false
+}
